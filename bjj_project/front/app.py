@@ -1,14 +1,29 @@
+import os
 import streamlit as st
 import requests
-import json
-import os
 
 # ==========================================
 # 1. 환경 설정 및 상수 정의
 # ==========================================
-# FastAPI 백엔드 주소 (Docker Compose 사용 시 backend 서비스명으로 통신)
-# EC2 등 다른 환경 배포 시 쉽게 수정할 수 있도록 환경 변수를 우선적으로 읽고, 기본값을 할당합니다.
-BACKEND_URL = os.environ.get("BACKEND_URL", "http://backend:8000/recommend")
+# FastAPI 백엔드 주소를 환경 변수로 우선 읽고,
+# 없으면 실행 환경에 맞게 자동으로 연결합니다.
+# - 로컬 실행: http://127.0.0.1:8000/recommend
+# - Docker 컨테이너 내부 실행: http://backend:8000/recommend
+
+def get_backend_url():
+    env_url = os.environ.get("BACKEND_URL")
+    if env_url:
+        return env_url
+
+    # Docker 컨테이너 안에서 실행 중이면 같은 Docker 네트워크의 서비스명 사용
+    if os.path.exists("/.dockerenv"):
+        return "http://backend:8000/recommend"
+
+    # 로컬 실행이면 호스트의 포트로 직접 접속
+    return "http://127.0.0.1:8000/recommend"
+
+
+BACKEND_URL = get_backend_url()
 
 # 플레이 스타일 목록
 STYLES = [
@@ -63,9 +78,9 @@ if submit_button:
     try:
         with st.spinner("최적의 트레이닝 프로그램을 계산 중입니다..."):
             # FastAPI 백엔드로 POST 요청 (추천 계산은 모두 백엔드에서 수행)
-            response = requests.post(BACKEND_URL, json=payload)
+            response = requests.post(BACKEND_URL, json=payload, timeout=10)
             response.raise_for_status()
-            
+
             # JSON 응답 파싱
             result = response.json()
             
